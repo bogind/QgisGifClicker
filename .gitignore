@@ -1,0 +1,12 @@
+zip_build/!README.txt
+zip_build/gif_clicker.zip
+zip_build/gif_clicker/__init__.py
+zip_build/gif_clicker/gif_clicker_dialog_base.ui
+zip_build/gif_clicker/gif_clicker_dialog.py
+zip_build/gif_clicker/gif_clicker.py
+zip_build/gif_clicker/icon.png
+zip_build/gif_clicker/map_tools.py
+zip_build/gif_clicker/metadata.txt
+zip_build/gif_clicker/resources.py
+zip_build/gif_clicker/gifs/circle.gif
+zip_build/gif_clicker/gifs/star.gif
