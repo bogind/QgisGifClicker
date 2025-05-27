@@ -26,6 +26,7 @@ from qgis.gui import QgsMapMouseEvent, QgsMapToolPan
 from qgis.PyQt.QtGui import QMovie
 from qgis.PyQt.QtWidgets import QLabel
 from qgis.PyQt.QtCore import pyqtSlot, pyqtSignal, Qt
+from qgis.core import QgsMessageLog, Qgis
 
 
 class GifClickerMapToolPan(QgsMapToolPan):
@@ -84,6 +85,10 @@ class GifClickerMapToolPan(QgsMapToolPan):
             
             self.labels[labelIdx].setMovie(gifInstance)
             gifInstance.start()
+            QgsMessageLog.logMessage('GifClicker: Gif added to scene', 'GifClicker', level=Qgis.INFO)
+            QgsMessageLog.logMessage("Your plugin code might have some problems", level=Qgis.Warning)
+            print('GifClicker: Gif added to scene')
+
         except Exception as e:
             print(e)
 
