@@ -10,10 +10,10 @@ version=0.1
 author=Dror Bogin
 email=dror.bogin@gmail.com
 
-about=Select GIFs to play when you click on the canvas with different map tools. Allows you to select a gif file to play when using different map tools. Maybe switch up the cursors too, don't know yet
+about=Select GIFs to play when you click on the canvas with different map tools. Allows you to select a gif from three available GIFs to play when using the pan map tool.
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/bogind/QgisGifClicker/issues
+repository=https://github.com/bogind/QgisGifClicker
 # End of mandatory metadata
 
 # Recommended items:
@@ -23,13 +23,13 @@ hasProcessingProvider=no
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=silly,gifs,map tools
+tags=silly,gifs,gif,map tools
 
-homepage=http://homepage
+homepage=https://github.com/bogind/QgisGifClicker
 category=Plugins
-icon=icon.png
+icon=qgs_gifs_icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False

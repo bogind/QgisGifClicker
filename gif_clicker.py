@@ -24,8 +24,10 @@
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QSize
 from qgis.PyQt.QtGui import QIcon, QMovie
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QCheckBox, QComboBox
 from qgis.gui import QgsMapToolPan
+from qgis.core import QgsSettings, QgsApplication, QgsMessageLog, Qgis
+import json
 
 # Initialize Qt resources from file resources.py
 from .resources import * # noqa: F403
@@ -34,6 +36,19 @@ from .map_tools import GifClickerMapToolPan
 from .gif_clicker_dialog import GifClickerDialog
 import os.path
 
+MESSAGE_CATEGORY = 'QGIS GIF Clicker Plugin'
+
+GIF_DICT = {
+    'explosion': {'path':'gifs/explosion.gif',
+                  'label': 'Explosion',
+                  'attribution': 'explosion'},
+    'star': {'path':'gifs/star.gif',
+                'label': 'Star',
+                'attribution': 'star'},
+    'circle': {'path':'gifs/circle.gif',
+                'label': 'Circle',
+                'attribution': 'circle'},
+}
 
 class GifClicker:
     """QGIS Plugin Implementation."""
@@ -66,10 +81,20 @@ class GifClicker:
         self.actions = []
         self.menu = self.tr(u'&Gif Clicker')
         self.tools = []
-        self.gif = QMovie(os.path.join(self.plugin_dir,'gifs','circle.gif'))#QMovie(r"C:\Users\drorb\Pictures\gifs\surprised-shak.gif")
-        self.gif.setScaledSize(QSize(50, 50))
+        self.toolbar = None
+        self.config = None
+        self.mb = self.iface.messageBar()
+        self.enabled = self.get_setting('enabled', True)  # Default value for GIFs enabled
         self.pan_tool = GifClickerMapToolPan(self.iface.mapCanvas())
-        self.pan_tool.setGif(self.gif)
+        self.pan_tool_gif = self.get_setting('panGif', 'star')  # Default GIF for pan tool
+        if self.pan_tool_gif not in GIF_DICT:
+                QgsMessageLog.logMessage(
+                f'Invalid GIF selected: {self.pan_tool_gif}. Using default GIF.',
+                MESSAGE_CATEGORY,
+                Qgis.Warning)
+                self.pan_tool_gif = 'explosion'  # Fallback to default if not found
+        self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, GIF_DICT[self.pan_tool_gif]['path']))
+        # Initialize the map tool with a default GIF
         
 
 
@@ -170,12 +195,50 @@ class GifClicker:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/gif_clicker/icon.png'
+        
+        self.toolbar = self.iface.addToolBar('GIF Clicker')
+        self.toolbar.setObjectName('GIF Clicker')
+
+        icon_path = os.path.join(self.plugin_dir,'qgs_gifs_icon.png')
+        config_icon_path = ':/plugins/gif_clicker/qgs_gifs_config_icon.png'
+        
+        # Add the toolbar
+        self.toolbar = self.iface.addToolBar('GIFs Toolbar')
+        self.toolbar.setObjectName('GIFs')
+
+        # Add Icon
+        self.icon = QIcon(icon_path)
+
+        # Add the GIFs toggle
+        self.gif_toggle = QCheckBox('Enable GIFs')
+        self.gif_toggle.setToolTip(self.tr(u'Enable GIFs on map click with the pan tool'))
+        self.gif_toggle.setIcon(self.icon) 
+        gifs_enabled = self.get_setting('enabled', True)
+
+        if gifs_enabled:
+            self.gif_toggle.setChecked(True)
+        else:
+            self.gif_toggle.setChecked(False)
+        self.gif_toggle.toggled.connect(self.toggle_gif_enabled)
+        self.toolbar.addWidget(self.gif_toggle)
+
+        # Add a ComboBox to select the GIF
+        self.pan_tool_gif = self.restore_settings()
+        self.gif_combo = QComboBox()
+        self.gif_combo.setToolTip(self.tr(u'Select the GIF to play when using the pan tool'))
+        self.gif_combo.addItems([gif['label'] for gif in GIF_DICT.values()])
+        self.gif_combo.setCurrentText(GIF_DICT[self.pan_tool_gif]['label'])
+        self.gif_combo.currentTextChanged.connect(self.onGifSelected)
+        self.toolbar.addWidget(self.gif_combo)
+
+        #TODO: add this as an action that opens the config dialog
+        """
         self.add_action(
             icon_path,
             text=self.tr(u'Use GIFs'),
             callback=self.run,
             parent=self.iface.mainWindow())
+        """
 
         self.iface.mapCanvas().mapToolSet.connect(self.onMapToolSet)
         # will be set False in run()
@@ -195,15 +258,124 @@ class GifClicker:
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         try:
+            # disconnect the map tool set signal
             self.iface.mapCanvas().mapToolSet.disconnect(self.onMapToolSet)
+
+            # remove the toolbar
+            if self.toolbar is not None:
+                self.toolbar = None
         except Exception as e:
             # no need to disconnect if not connected
-            print(e)
+            QgsMessageLog.logMessage(
+                'Error unloading plugin: {}'.format(str(e)),
+                MESSAGE_CATEGORY,
+                Qgis.Critical)
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.tr(u'&Gif Clicker'),
                 action)
             self.iface.removeToolBarIcon(action)
+
+    def onGifSelected(self, gif_label):
+        """Handle the GIF selection from the combo box."""
+        # Find the selected GIF in the GIF_DICT
+        selected_gif = next((gif for gif in GIF_DICT.values() if gif['label'] == gif_label), None)
+        if selected_gif:
+            self.pan_tool_gif = selected_gif['path']
+            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.pan_tool_gif))
+            self.set_setting('panGif', self.pan_tool_gif)
+            QgsMessageLog.logMessage(
+                f'Selected GIF: {gif_label}',
+                MESSAGE_CATEGORY,
+                Qgis.Info)
+            
+
+
+    def toggle_gif_enabled(self):
+        """Toggle the GIFs enabled setting."""
+        try:
+            self.enabled = not self.enabled
+            self.pan_tool.setEnabled(self.enabled)
+            self.set_setting('enabled', self.enabled)
+            if self.enabled:
+                QgsMessageLog.logMessage(
+                    'GIFs enabled',
+                    MESSAGE_CATEGORY,
+                    Qgis.Info)
+                self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, GIF_DICT[self.pan_tool_gif]['path']))
+                self.iface.mapCanvas().setMapTool(self.pan_tool)
+            else:
+                QgsMessageLog.logMessage(
+                    'GIFs disabled',
+                    MESSAGE_CATEGORY,
+                    Qgis.Info)
+        except Exception as e:
+            QgsMessageLog.logMessage('Error toggling GIFs: {}'.fomrat(str(e)),MESSAGE_CATEGORY,Qgis.Error)
+
+
+    def configure(self):
+        """Configure the plugin"""
+        try:
+            if self.config is None:
+                self.config = self.restore_settings()
+
+        except Exception as e:
+            self.mb.pushCritical('Error configuring GIF Clicker plugin', str(e))
+            QgsMessageLog.logMessage('Error unloading: {}'.fomrat(str(e)),MESSAGE_CATEGORY,Qgis.Error)
+
+    def restore_settings(self):
+        try:
+            self.enabled = self.get_setting('enabled', True)
+            default_pan_gif = 'star'
+            self.pan_tool_gif = self.get_setting('panGif', default_pan_gif)
+            if self.pan_tool_gif not in GIF_DICT:
+                self.pan_tool_gif = default_pan_gif
+            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, GIF_DICT[self.pan_tool_gif]['path']))
+            self.pan_tool.setGif(self.pan_tool.getGif())
+            self.pan_tool.setEnabled(self.enabled)
+            return self.pan_tool_gif
+        except Exception as e:
+            QgsMessageLog.logMessage('Error restoring settings: {}'.format(str(e)), MESSAGE_CATEGORY, Qgis.Critical)
+            return {}
+        
+        
+    def get_setting(self, key: str, default: str = None):
+        """Get a value in the QgsSettings.
+
+        :param key: The key to fetch in the QgsSettings
+        :type key: basestring
+
+        :param default: The default value if the key is not found.
+        :type default: basestring
+
+        :return: The value or the default value.
+        :rtype: basestring
+        """
+        q_setting = QgsSettings()
+        prefix = '/GifClicker/'
+        value = q_setting.value(prefix + key)
+
+        if value is not None:
+            return value
+
+        return default
+
+
+    def set_setting(self, key: str, value: str):
+        """
+        Set a value in the QgsSettings
+        :param key: key
+        :type key: str
+
+        :param value: value
+        :type value: str
+
+        :return: result
+        :rtype: bool
+        """
+        q_setting = QgsSettings()
+        prefix = '/GifClicker/'
+        return q_setting.setValue(prefix + key, value)
 
 
     def run(self):

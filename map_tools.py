@@ -25,13 +25,32 @@
 from qgis.gui import QgsMapMouseEvent, QgsMapToolPan
 from qgis.PyQt.QtGui import QMovie
 from qgis.PyQt.QtWidgets import QLabel
-from qgis.PyQt.QtCore import pyqtSlot, pyqtSignal, Qt
+from qgis.PyQt.QtCore import pyqtSlot, pyqtSignal, Qt, QSize
 from qgis.core import QgsMessageLog, Qgis
 
+MESSAGE_CATEGORY = 'QGIS GIF Clicker Plugin'
 
 class GifClickerMapToolPan(QgsMapToolPan):
 
     gifChanged = pyqtSignal(QMovie)
+    enabled = True
+
+    def setEnabled(self, enabled: bool):
+        self.enabled = enabled
+        if not self.enabled:
+            QgsMessageLog.logMessage('GifClicker: Map tool disabled', MESSAGE_CATEGORY, level=Qgis.Info)
+        else:
+            QgsMessageLog.logMessage('GifClicker: Map tool enabled', MESSAGE_CATEGORY, level=Qgis.Info)
+        return self.enabled
+    
+    def isEnabled(self):
+        return self.enabled
+    
+    def getGif(self) -> QMovie:
+        if self.gif is None:
+            return QMovie()
+        return self.gif
+        
 
     def setGif(self, gif: QMovie):
         self.gif = gif
@@ -39,6 +58,7 @@ class GifClickerMapToolPan(QgsMapToolPan):
     
     def setGifUrl(self, gif_url: str):
         self.gif = QMovie(gif_url)
+        self.gif.setScaledSize(QSize(50, 50))
         self.gifChanged.emit(self.gif)
 
     @pyqtSlot(QMovie)
@@ -71,6 +91,8 @@ class GifClickerMapToolPan(QgsMapToolPan):
         if self.gif is None:
             return
         try:
+            if self.enabled is False:
+                return
             labelIdx = self.setupLabel()
             point = event.pixelPoint()
             size = self.gif.scaledSize()
@@ -85,9 +107,8 @@ class GifClickerMapToolPan(QgsMapToolPan):
             
             self.labels[labelIdx].setMovie(gifInstance)
             gifInstance.start()
-            QgsMessageLog.logMessage('GifClicker: Gif added to scene', 'GifClicker', level=Qgis.INFO)
-            QgsMessageLog.logMessage("Your plugin code might have some problems", level=Qgis.Warning)
-            print('GifClicker: Gif added to scene')
+            QgsMessageLog.logMessage('Gif added to scene', MESSAGE_CATEGORY, level=Qgis.INFO)
+            
 
         except Exception as e:
             print(e)
