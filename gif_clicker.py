@@ -43,15 +43,15 @@ GIF_DICT = {
     'explosion': {'path':'gifs/explosion.gif',
                   'label': 'Explosion',
                   'type': 'base',
-                  'attribution': 'explosion'},
+                  'attribution': 'created from assets in the kenny.nl smoke particale pack - https://kenney.nl/assets/smoke-particles'},
     'star': {'path':'gifs/star.gif',
                 'label': 'Star',
                 'type': 'base',
-                'attribution': 'star'},
+                'attribution': 'created from assets in the kenny.nl particale pack - https://kenney.nl/assets/particle-pack'},
     'circle': {'path':'gifs/circle.gif',
                 'label': 'Circle',
                 'type': 'base',
-                'attribution': 'circle'},
+                'attribution': 'created from assets in the kenny.nl particale pack - https://kenney.nl/assets/particle-pack'},
 }
 
 class GifClicker:

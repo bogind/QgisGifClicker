@@ -1,7 +1,8 @@
 # QGIS GIF Clicker Plugin
 
 This plugin plays a selected when you click on the map using the Pan Map tool when it is enabled
-After installation, add the **GIFs toolbar** to your workspace to enable GIFs and select between teh available GIFs.
+After installation, add the **GIFs toolbar** to your workspace to enable GIFs and select between the available GIFs.  
+Using the 'Add Custom GIF' button will open a dialog that will allow you to add your own GIFs to the list.
 
 ### Disclaimer
 

@@ -6,11 +6,11 @@
 name=Gif Clicker
 qgisMinimumVersion=3.28
 description=Select GIFs to play when you click on the canvas with different map tools
-version=0.1
+version=0.2
 author=Dror Bogin
 email=dror.bogin@gmail.com
 
-about=Select GIFs to play when you click on the canvas with different map tools. Allows you to select a gif from three available GIFs to play when using the pan map tool.
+about=Select GIFs to play when you click on the canvas with different map tools. Select one of 3 available GIFs or add your own.
 
 tracker=https://github.com/bogind/QgisGifClicker/issues
 repository=https://github.com/bogind/QgisGifClicker
