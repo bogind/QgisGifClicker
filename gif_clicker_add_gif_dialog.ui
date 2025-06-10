@@ -6,18 +6,28 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>436</width>
-    <height>155</height>
+    <width>415</width>
+    <height>165</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Add Custom GIF</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>qgs_gifs_icon.png</normaloff>qgs_gifs_icon.png</iconset>
+  </property>
+  <property name="whatsThis">
+   <string>Add Custom GIF</string>
+  </property>
+  <property name="accessibleDescription">
+   <string>Add Custom GIF to QGIS GIF Clicker</string>
   </property>
   <widget class="QDialogButtonBox" name="buttonBox">
    <property name="geometry">
     <rect>
-     <x>80</x>
-     <y>110</y>
+     <x>60</x>
+     <y>120</y>
      <width>341</width>
      <height>32</height>
     </rect>
@@ -32,21 +42,27 @@
   <widget class="QLabel" name="label">
    <property name="geometry">
     <rect>
-     <x>50</x>
-     <y>20</y>
+     <x>30</x>
+     <y>10</y>
      <width>281</width>
-     <height>21</height>
+     <height>31</height>
     </rect>
    </property>
    <property name="text">
     <string>Add a local GIF to QGIS GIF Clicker</string>
    </property>
+   <property name="textFormat">
+    <enum>Qt::AutoText</enum>
+   </property>
+   <property name="scaledContents">
+    <bool>false</bool>
+   </property>
   </widget>
   <widget class="QWidget" name="formLayoutWidget">
    <property name="geometry">
     <rect>
-     <x>50</x>
-     <y>40</y>
+     <x>30</x>
+     <y>50</y>
      <width>371</width>
      <height>61</height>
     </rect>
