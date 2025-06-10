@@ -22,9 +22,10 @@
  ***************************************************************************/
 """
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QSize
-from qgis.PyQt.QtGui import QIcon, QMovie
-from qgis.PyQt.QtWidgets import QAction, QCheckBox, QComboBox
+from math import e
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QAction, QCheckBox, QComboBox, QDialog
 from qgis.gui import QgsMapToolPan
 from qgis.core import QgsSettings, QgsApplication, QgsMessageLog, Qgis
 import json
@@ -33,7 +34,7 @@ import json
 from .resources import * # noqa: F403
 from .map_tools import GifClickerMapToolPan
 # Import the code for the dialog
-from .gif_clicker_dialog import GifClickerDialog
+from .gif_clicker_dialog import GifClickerDialog, GifClickerAddGifDialog
 import os.path
 
 MESSAGE_CATEGORY = 'QGIS GIF Clicker Plugin'
@@ -41,12 +42,15 @@ MESSAGE_CATEGORY = 'QGIS GIF Clicker Plugin'
 GIF_DICT = {
     'explosion': {'path':'gifs/explosion.gif',
                   'label': 'Explosion',
+                  'type': 'base',
                   'attribution': 'explosion'},
     'star': {'path':'gifs/star.gif',
                 'label': 'Star',
+                'type': 'base',
                 'attribution': 'star'},
     'circle': {'path':'gifs/circle.gif',
                 'label': 'Circle',
+                'type': 'base',
                 'attribution': 'circle'},
 }
 
@@ -77,23 +81,47 @@ class GifClicker:
             self.translator.load(locale_path)
             QCoreApplication.installTranslator(self.translator)
 
+        # Write default GIF configuration if it does not exist
+        if not os.path.exists(os.path.join(self.plugin_dir, 'gifs.json')):
+            with open(os.path.join(self.plugin_dir, 'gifs.json'), 'w') as f:
+                json.dump(GIF_DICT, f, indent=4)
+
+        with open(os.path.join(self.plugin_dir,'gifs.json')) as f:
+            self.gifs_config = json.load(f)
+            f.close()
+
+
         # Declare instance attributes
         self.actions = []
         self.menu = self.tr(u'&Gif Clicker')
         self.tools = []
         self.toolbar = None
-        self.config = None
+        self.config = None        
         self.mb = self.iface.messageBar()
         self.enabled = self.get_setting('enabled', True)  # Default value for GIFs enabled
         self.pan_tool = GifClickerMapToolPan(self.iface.mapCanvas())
         self.pan_tool_gif = self.get_setting('panGif', 'star')  # Default GIF for pan tool
-        if self.pan_tool_gif not in GIF_DICT:
+        if self.pan_tool_gif not in self.gifs_config:
                 QgsMessageLog.logMessage(
                 f'Invalid GIF selected: {self.pan_tool_gif}. Using default GIF.',
                 MESSAGE_CATEGORY,
                 Qgis.Warning)
-                self.pan_tool_gif = 'explosion'  # Fallback to default if not found
-        self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, GIF_DICT[self.pan_tool_gif]['path']))
+                self.pan_tool_gif = 'star'  # Fallback to default if not found
+        
+        # Set the GIF URL for the pan tool
+        if not hasattr(self.gifs_config[self.pan_tool_gif],'type') or self.gifs_config[self.pan_tool_gif]['type'] == 'base':
+            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.gifs_config[self.pan_tool_gif]['path']))
+        else:
+            if self.gifs_config[self.pan_tool_gif]['type'] != 'base' and os.path.exists(self.gifs_config[self.pan_tool_gif]['path']):
+                self.pan_tool.setGifUrl(self.gifs_config[self.pan_tool_gif]['path'])
+            else:
+                QgsMessageLog.logMessage(
+                    f'GIF path not found: {self.gifs_config[self.pan_tool_gif]["path"]}. Using default GIF.',
+                    MESSAGE_CATEGORY,
+                    Qgis.Warning)
+                self.mb.pushWarning('GIF Clicker Plugin', f'GIF path not found: {self.gifs_config[self.pan_tool_gif]["path"]}. Using default GIF.')
+                # Fallback to default GIF if path not found
+                self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.gifs_config['star']['path']))
         # Initialize the map tool with a default GIF
         
 
@@ -200,7 +228,7 @@ class GifClicker:
         self.toolbar.setObjectName('GIF Clicker')
 
         icon_path = os.path.join(self.plugin_dir,'qgs_gifs_icon.png')
-        config_icon_path = ':/plugins/gif_clicker/qgs_gifs_config_icon.png'
+        self.add_gif_dlg = GifClickerAddGifDialog()
         
         # Add the toolbar
         self.toolbar = self.iface.addToolBar('GIFs Toolbar')
@@ -223,13 +251,25 @@ class GifClicker:
         self.toolbar.addWidget(self.gif_toggle)
 
         # Add a ComboBox to select the GIF
-        self.pan_tool_gif = self.restore_settings()
         self.gif_combo = QComboBox()
+
+        # Populate the ComboBox with available GIFs
+        self.pan_tool_gif = self.restore_settings()
         self.gif_combo.setToolTip(self.tr(u'Select the GIF to play when using the pan tool'))
-        self.gif_combo.addItems([gif['label'] for gif in GIF_DICT.values()])
-        self.gif_combo.setCurrentText(GIF_DICT[self.pan_tool_gif]['label'])
         self.gif_combo.currentTextChanged.connect(self.onGifSelected)
         self.toolbar.addWidget(self.gif_combo)
+
+        # Add the button to open the "Add Custom Gif" dialog
+        #add_icon = QIcon(":images/themes/default/mActionAdd.svg")
+        self.add_gif_button = self.add_action(":images/themes/default/mActionAdd.svg",
+            text=self.tr(u'Add Custom GIF'),
+            callback=self.display_add_gif_dialog,
+            parent=self.iface.mainWindow(),
+            add_to_menu=False,
+            add_to_toolbar=False,
+            status_tip=self.tr(u'Add a custom GIF to the plugin'))
+        self.toolbar.addAction(self.add_gif_button)
+        
 
         #TODO: add this as an action that opens the config dialog
         """
@@ -243,6 +283,27 @@ class GifClicker:
         self.iface.mapCanvas().mapToolSet.connect(self.onMapToolSet)
         # will be set False in run()
         self.first_start = True
+
+    
+    def display_add_gif_dialog(self):
+        """Display the dialog to add a custom GIF."""
+        try:
+            self.add_gif_dlg.show()
+            self.add_gif_dlg.gif_path.setFilePath('')  # Clear the input field
+            self.add_gif_dlg.gif_label.clear()  # Clear the label field
+
+            if self.add_gif_dlg.exec_() == QDialog.Accepted:
+                gif_path = self.add_gif_dlg.gif_path.filePath()
+                gif_label = self.add_gif_dlg.gif_label.text()
+                if gif_path and gif_label:
+                    self.add_custom_gif(gif_path, gif_label)
+                    self.mb.pushInfo('GIF Clicker Plugin', f'GIF {gif_label} added successfully.')
+                else:
+                    self.mb.pushWarning('GIF Clicker Plugin', 'Please provide both GIF path and label.')
+            else:
+                self.add_gif_dlg.reject()  # Close the dialog without saving changes
+        except Exception as e:
+            QgsMessageLog.logMessage(f'Error displaying add GIF dialog: {str(e)}', MESSAGE_CATEGORY, Qgis.Critical)
 
 
     
@@ -276,8 +337,8 @@ class GifClicker:
 
     def onGifSelected(self, gif_label):
         """Handle the GIF selection from the combo box."""
-        # Find the selected GIF in the GIF_DICT
-        selected_gif = next((gif for gif in GIF_DICT.values() if gif['label'] == gif_label), None)
+        # Find the selected GIF in the self.gifs_config
+        selected_gif = next((gif for gif in self.gifs_config.values() if gif['label'] == gif_label), None)
         if selected_gif:
             self.pan_tool_gif = selected_gif['path']
             self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.pan_tool_gif))
@@ -326,15 +387,90 @@ class GifClicker:
             self.enabled = self.get_setting('enabled', True)
             default_pan_gif = 'star'
             self.pan_tool_gif = self.get_setting('panGif', default_pan_gif)
-            if self.pan_tool_gif not in GIF_DICT:
+            # Check if the GIFs configuration file exists, if not create it
+            if not os.path.exists(os.path.join(self.plugin_dir, 'gifs.json')):
+                with open(os.path.join(self.plugin_dir, 'gifs.json'), 'w') as f:
+                    json.dump(GIF_DICT, f, indent=4)
+
+            # Load the GIFs configuration from the JSON file
+            with open(os.path.join(self.plugin_dir, 'gifs.json')) as f:
+                self.gifs_config = json.load(f)
+                f.close()
+
+            if self.pan_tool_gif not in self.gifs_config:
                 self.pan_tool_gif = default_pan_gif
-            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, GIF_DICT[self.pan_tool_gif]['path']))
+
+            # Update the combo box with the available GIFs
+            self.gif_combo.clear()  # Clear existing items
+            self.gif_combo.addItems([gif['label'] for gif in self.gifs_config.values()])
+            self.gif_combo.setCurrentText(self.gifs_config[self.pan_tool_gif]['label'])
+
+            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.gifs_config[self.pan_tool_gif]['path']))
             self.pan_tool.setGif(self.pan_tool.getGif())
             self.pan_tool.setEnabled(self.enabled)
             return self.pan_tool_gif
         except Exception as e:
+            print(f'Error restoring settings: {str(e)}')
             QgsMessageLog.logMessage('Error restoring settings: {}'.format(str(e)), MESSAGE_CATEGORY, Qgis.Critical)
-            return {}
+            return default_pan_gif
+        
+
+    def save_gif_settings(self):
+        """Save the plugin settings to a JSON file.
+
+        :param settings: The settings to save.
+        :type settings: dict
+        """
+        try:
+            with open(os.path.join(self.plugin_dir, 'gifs.json'), 'w') as f:
+                json.dump(self.gifs_config, f, indent=4)
+                f.close()
+
+            self.restore_settings()  # Refresh the settings after saving
+            QgsMessageLog.logMessage('GIF settings saved successfully', MESSAGE_CATEGORY, Qgis.Info)
+        except Exception as e:
+            QgsMessageLog.logMessage('Error saving GIF settings: {}'.format(str(e)), MESSAGE_CATEGORY, Qgis.Critical)
+
+
+    def add_custom_gif(self, gif_path: str, gif_label: str):
+        """Add a custom GIF to the plugin configuration.
+
+        :param gif_path: The path to the GIF file.
+        :type gif_path: str
+
+        :param gif_label: The label for the GIF.
+        :type gif_label: str
+
+        :param gif_type: The type of the GIF, can be 'base' or 'custom'.
+        :type gif_type: str
+        """
+        try:
+            if not os.path.exists(gif_path):
+                QgsMessageLog.logMessage(f'GIF file not found: {gif_path}', MESSAGE_CATEGORY, Qgis.Critical)
+                self.mb.pushCritical('GIF Clicker Plugin', f'GIF file not found: {gif_path}')
+                return
+            
+            if gif_label in self.gifs_config:
+                if self.gifs_config[gif_label]['type'] == 'base':
+                    QgsMessageLog.logMessage(f'GIF name already exists as base: {gif_label}', MESSAGE_CATEGORY, Qgis.Critical)
+                    self.mb.pushCritical('GIF Clicker Plugin', f'GIF name already exists as base: {gif_label}')
+                    return
+                else:
+                    QgsMessageLog.logMessage(f'GIF {gif_label} already exists, updating path.', MESSAGE_CATEGORY, Qgis.Info)
+                    self.mb.pushInfo('GIF Clicker Plugin', f'GIF {gif_label} already exists, updating path.')
+                    self.gifs_config[gif_label]['path'] = gif_path
+            else:
+                # Add the new GIF to the configuration
+                self.gifs_config[gif_label] = {
+                    'path': gif_path,
+                    'label': gif_label,
+                    'type': 'custom'
+                }
+            self.save_gif_settings()
+        except Exception as e:
+            QgsMessageLog.logMessage(f'Error adding custom GIF: {str(e)}', MESSAGE_CATEGORY, Qgis.Critical)
+            self.mb.pushCritical('GIF Clicker Plugin', f'Error adding custom GIF: {str(e)}')
+
         
         
     def get_setting(self, key: str, default: str = None):

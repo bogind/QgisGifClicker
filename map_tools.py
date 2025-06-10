@@ -95,6 +95,21 @@ class GifClickerMapToolPan(QgsMapToolPan):
             return
         scene.removeItem(itemIdx)
 
+
+    def onFrameChanged(self, frame, scene=None, itemIdx=None):
+        """Check frame number and stop the movie if it reaches the last frame and has a higher loop count than allowed.
+        This is to prevent the movie from looping indefinitely if the loop count is set to a value greater than 1.
+        Args:
+            frame (int): The current frame number of the movie.
+        """
+        if self.gifInstance is None or not self.gifInstance.isValid():
+            QgsMessageLog.logMessage('GifClicker: Invalid GIF instance', MESSAGE_CATEGORY, level=Qgis.Warning)
+            return
+        if(frame == (self.gifInstance.frameCount() - 1) and (self.gifInstance.loopCount() > 0 or self.gifInstance.loopCount() == -1)):
+            self.gifInstance.stop()
+            self.onMovieFinished(scene, itemIdx)
+
+
     def canvasReleaseEvent(self, event: QgsMapMouseEvent):
         super().canvasReleaseEvent(event)
         if self.scene is None:
@@ -114,6 +129,7 @@ class GifClickerMapToolPan(QgsMapToolPan):
             h = size.height()
             itemIdx = self.scene.addWidget(self.labels[self.labelIdx], Qt.WindowTransparentForInput)
             self.gifInstance.finished.connect(lambda: self.onMovieFinished(self.scene, itemIdx))
+            self.gifInstance.frameChanged.connect(lambda: self.onFrameChanged(self.gifInstance.currentFrameNumber(), self.scene, itemIdx))
             self.gifInstance.setCacheMode(QMovie.CacheAll)
             self.labels[labelIdx].setGeometry(round(point.x()-(w/2)), round(point.y()-(h/2)), w, h)
             
