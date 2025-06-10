@@ -38,8 +38,15 @@ class GifClickerMapToolPan(QgsMapToolPan):
     def setEnabled(self, enabled: bool):
         self.enabled = enabled
         if not self.enabled:
+            self.canvas().unsetMapTool(self)
+            if( hasattr(self, 'gifInstance') and self.gifInstance is not None):
+                self.gifInstance.jumpToFrame(self.gifInstance.frameCount() - 1)
+            self.gifInstance = QMovie()
             QgsMessageLog.logMessage('GifClicker: Map tool disabled', MESSAGE_CATEGORY, level=Qgis.Info)
         else:
+            self.canvas().setMapTool(self)
+            if self.gif is not None:
+                self.gifInstance = QMovie(self.gif.fileName())
             QgsMessageLog.logMessage('GifClicker: Map tool enabled', MESSAGE_CATEGORY, level=Qgis.Info)
         return self.enabled
     
@@ -75,13 +82,17 @@ class GifClickerMapToolPan(QgsMapToolPan):
             self.labels[self.labelIdx].setStyleSheet("QLabel#gifLabel { background-color: rgba(0,0,0,0) }")
             return self.labelIdx
         except Exception as e:
-            print(e)
+            QgsMessageLog.logMessage(f'{str(e)}', MESSAGE_CATEGORY, level=Qgis.Critical)
 
     def setGifSize(self, width, height):
         self.gif.setScaledSize(width, height)
 
     @staticmethod
     def onMovieFinished(scene,itemIdx):
+        # For debugging purposes
+        #QgsMessageLog.logMessage(f'Gif {itemIdx} played on scene {scene}', MESSAGE_CATEGORY, level=Qgis.Info)
+        if scene is None or itemIdx is None:
+            return
         scene.removeItem(itemIdx)
 
     def canvasReleaseEvent(self, event: QgsMapMouseEvent):
@@ -96,22 +107,24 @@ class GifClickerMapToolPan(QgsMapToolPan):
             labelIdx = self.setupLabel()
             point = event.pixelPoint()
             size = self.gif.scaledSize()
-            gifInstance = QMovie(self.gif.fileName())
-            gifInstance.setScaledSize(size)
-            gifInstance.setSpeed(self.gif.speed())
+            self.gifInstance = QMovie(self.gif.fileName())
+            self.gifInstance.setScaledSize(size)
+            self.gifInstance.setSpeed(self.gif.speed())
             w = size.width()
             h = size.height()
             itemIdx = self.scene.addWidget(self.labels[self.labelIdx], Qt.WindowTransparentForInput)
-            gifInstance.finished.connect(lambda: self.onMovieFinished(self.scene, itemIdx))
+            self.gifInstance.finished.connect(lambda: self.onMovieFinished(self.scene, itemIdx))
+            self.gifInstance.setCacheMode(QMovie.CacheAll)
             self.labels[labelIdx].setGeometry(round(point.x()-(w/2)), round(point.y()-(h/2)), w, h)
             
-            self.labels[labelIdx].setMovie(gifInstance)
-            gifInstance.start()
-            QgsMessageLog.logMessage('Gif added to scene', MESSAGE_CATEGORY, level=Qgis.INFO)
+            self.labels[labelIdx].setMovie(self.gifInstance)
+            self.gifInstance.start()
+            # For debugging purposes
+            #QgsMessageLog.logMessage('Gif added to scene', MESSAGE_CATEGORY, level=Qgis.Info)
             
 
         except Exception as e:
-            print(e)
+            QgsMessageLog.logMessage(f'{str(e)}', MESSAGE_CATEGORY, level=Qgis.Critical)
 
 
     def __init__(self, canvas):

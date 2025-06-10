@@ -244,9 +244,6 @@ class GifClicker:
         # will be set False in run()
         self.first_start = True
 
-    @staticmethod
-    def onMovieFinished(scene,itemIdx):
-        scene.removeItem(itemIdx)
 
     
     def onMapToolSet(self, newToolSet, oldToolSet):
@@ -260,7 +257,8 @@ class GifClicker:
         try:
             # disconnect the map tool set signal
             self.iface.mapCanvas().mapToolSet.disconnect(self.onMapToolSet)
-
+            self.pan_tool.gifChanged.disconnect(self.pan_tool.gifChangedSlot)
+            self.pan_tool.setEnabled(False)  # Disable the pan tool
             # remove the toolbar
             if self.toolbar is not None:
                 self.toolbar = None
@@ -302,7 +300,7 @@ class GifClicker:
                     'GIFs enabled',
                     MESSAGE_CATEGORY,
                     Qgis.Info)
-                self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, GIF_DICT[self.pan_tool_gif]['path']))
+                self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.pan_tool_gif))
                 self.iface.mapCanvas().setMapTool(self.pan_tool)
             else:
                 QgsMessageLog.logMessage(
@@ -310,7 +308,7 @@ class GifClicker:
                     MESSAGE_CATEGORY,
                     Qgis.Info)
         except Exception as e:
-            QgsMessageLog.logMessage('Error toggling GIFs: {}'.fomrat(str(e)),MESSAGE_CATEGORY,Qgis.Error)
+            QgsMessageLog.logMessage('Error toggling GIFs: {}'.format(str(e)),MESSAGE_CATEGORY,Qgis.Critical)
 
 
     def configure(self):
@@ -321,7 +319,7 @@ class GifClicker:
 
         except Exception as e:
             self.mb.pushCritical('Error configuring GIF Clicker plugin', str(e))
-            QgsMessageLog.logMessage('Error unloading: {}'.fomrat(str(e)),MESSAGE_CATEGORY,Qgis.Error)
+            QgsMessageLog.logMessage('Error unloading: {}'.fomrat(str(e)),MESSAGE_CATEGORY,Qgis.Critical)
 
     def restore_settings(self):
         try:
