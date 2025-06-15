@@ -22,12 +22,11 @@
  ***************************************************************************/
 """
 
-from math import e
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QCheckBox, QComboBox, QDialog
 from qgis.gui import QgsMapToolPan
-from qgis.core import QgsSettings, QgsApplication, QgsMessageLog, Qgis
+from qgis.core import QgsSettings, QgsMessageLog, Qgis
 import json
 
 # Initialize Qt resources from file resources.py
@@ -340,8 +339,13 @@ class GifClicker:
         # Find the selected GIF in the self.gifs_config
         selected_gif = next((gif for gif in self.gifs_config.values() if gif['label'] == gif_label), None)
         if selected_gif:
-            self.pan_tool_gif = selected_gif['path']
-            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.pan_tool_gif))
+            # Find the GIF name in the configuration by the label
+            for gif_name, gif_info in self.gifs_config.items():
+                if gif_info['label'] == gif_label:
+                    self.pan_tool_gif = gif_name
+                    break
+            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.gifs_config[self.pan_tool_gif]['path']))
+            self.pan_tool.setGif(self.pan_tool.getGif())
             self.set_setting('panGif', self.pan_tool_gif)
             QgsMessageLog.logMessage(
                 f'Selected GIF: {gif_label}',
@@ -382,7 +386,7 @@ class GifClicker:
             self.mb.pushCritical('Error configuring GIF Clicker plugin', str(e))
             QgsMessageLog.logMessage('Error unloading: {}'.fomrat(str(e)),MESSAGE_CATEGORY,Qgis.Critical)
 
-    def restore_settings(self):
+    def restore_settings(self, new_gif_label=None):
         try:
             self.enabled = self.get_setting('enabled', True)
             default_pan_gif = 'star'
@@ -403,10 +407,18 @@ class GifClicker:
             # Update the combo box with the available GIFs
             self.gif_combo.clear()  # Clear existing items
             self.gif_combo.addItems([gif['label'] for gif in self.gifs_config.values()])
+            # If a new GIF label is provided, update the pan tool GIF
+            if new_gif_label is not None:
+                if new_gif_label in self.gifs_config:
+                    self.pan_tool_gif = new_gif_label
+                else:
+                    QgsMessageLog.logMessage(
+                        f'GIF {new_gif_label} not found in configuration. Using default GIF.',
+                        MESSAGE_CATEGORY,
+                        Qgis.Warning)
+                    self.pan_tool_gif = default_pan_gif
             self.gif_combo.setCurrentText(self.gifs_config[self.pan_tool_gif]['label'])
 
-            self.pan_tool.setGifUrl(os.path.join(self.plugin_dir, self.gifs_config[self.pan_tool_gif]['path']))
-            self.pan_tool.setGif(self.pan_tool.getGif())
             self.pan_tool.setEnabled(self.enabled)
             return self.pan_tool_gif
         except Exception as e:
@@ -415,7 +427,7 @@ class GifClicker:
             return default_pan_gif
         
 
-    def save_gif_settings(self):
+    def save_gif_settings(self,new_gif_label=None):
         """Save the plugin settings to a JSON file.
 
         :param settings: The settings to save.
@@ -426,7 +438,10 @@ class GifClicker:
                 json.dump(self.gifs_config, f, indent=4)
                 f.close()
 
-            self.restore_settings()  # Refresh the settings after saving
+            if new_gif_label is not None:
+                self.restore_settings(new_gif_label)  # Refresh the settings after saving
+            else:
+                self.restore_settings()
             QgsMessageLog.logMessage('GIF settings saved successfully', MESSAGE_CATEGORY, Qgis.Info)
         except Exception as e:
             QgsMessageLog.logMessage('Error saving GIF settings: {}'.format(str(e)), MESSAGE_CATEGORY, Qgis.Critical)
@@ -466,7 +481,9 @@ class GifClicker:
                     'label': gif_label,
                     'type': 'custom'
                 }
-            self.save_gif_settings()
+            # Save the updated configuration
+            self.set_setting('panGif', gif_label) 
+            self.save_gif_settings(gif_label)
         except Exception as e:
             QgsMessageLog.logMessage(f'Error adding custom GIF: {str(e)}', MESSAGE_CATEGORY, Qgis.Critical)
             self.mb.pushCritical('GIF Clicker Plugin', f'Error adding custom GIF: {str(e)}')

@@ -26,6 +26,7 @@ from qgis.gui import QgsMapMouseEvent, QgsMapToolPan
 from qgis.PyQt.QtGui import QMovie
 from qgis.PyQt.QtWidgets import QLabel
 from qgis.PyQt.QtCore import pyqtSlot, pyqtSignal, Qt, QSize
+from qgis.PyQt import sip
 from qgis.core import QgsMessageLog, Qgis
 
 MESSAGE_CATEGORY = 'QGIS GIF Clicker Plugin'
@@ -60,6 +61,14 @@ class GifClickerMapToolPan(QgsMapToolPan):
         
 
     def setGif(self, gif: QMovie):
+        if not isinstance(gif, QMovie):
+            QgsMessageLog.logMessage('GifClicker: Invalid GIF instance', MESSAGE_CATEGORY, level=Qgis.Warning)
+            return
+        if gif.isValid() is False:
+            QgsMessageLog.logMessage('GifClicker: GIF instance is not valid', MESSAGE_CATEGORY, level=Qgis.Warning)
+            return
+        if self.gif is not None:
+            self.gif.stop()
         self.gif = gif
         self.gifChanged.emit(self.gif)
     
@@ -91,9 +100,13 @@ class GifClickerMapToolPan(QgsMapToolPan):
     def onMovieFinished(scene,itemIdx):
         # For debugging purposes
         #QgsMessageLog.logMessage(f'Gif {itemIdx} played on scene {scene}', MESSAGE_CATEGORY, level=Qgis.Info)
-        if scene is None or itemIdx is None:
-            return
-        scene.removeItem(itemIdx)
+        try:
+            if scene is None or itemIdx is None:
+                return
+            scene.removeItem(itemIdx)
+
+        except Exception as e:
+            QgsMessageLog.logMessage(f'Error removing item from scene: {str(e)}', MESSAGE_CATEGORY, level=Qgis.Critical)
 
 
     def onFrameChanged(self, frame, scene=None, itemIdx=None):
@@ -107,6 +120,7 @@ class GifClickerMapToolPan(QgsMapToolPan):
             return
         if(frame == (self.gifInstance.frameCount() - 1) and (self.gifInstance.loopCount() > 0 or self.gifInstance.loopCount() == -1)):
             self.gifInstance.stop()
+            self.gifInstance.deleteLater()
             self.onMovieFinished(scene, itemIdx)
 
 
@@ -123,13 +137,16 @@ class GifClickerMapToolPan(QgsMapToolPan):
             point = event.pixelPoint()
             size = self.gif.scaledSize()
             self.gifInstance = QMovie(self.gif.fileName())
+            self.gifInstance.setParent(self)
             self.gifInstance.setScaledSize(size)
             self.gifInstance.setSpeed(self.gif.speed())
             w = size.width()
             h = size.height()
             itemIdx = self.scene.addWidget(self.labels[self.labelIdx], Qt.WindowTransparentForInput)
             self.gifInstance.finished.connect(lambda: self.onMovieFinished(self.scene, itemIdx))
-            self.gifInstance.frameChanged.connect(lambda: self.onFrameChanged(self.gifInstance.currentFrameNumber(), self.scene, itemIdx))
+            if self.gifInstance is not None and not sip.isdeleted(self.gifInstance):
+                frame_number = self.gifInstance.currentFrameNumber()
+                self.gifInstance.frameChanged.connect(lambda: self.onFrameChanged(frame_number, self.scene, itemIdx))
             self.gifInstance.setCacheMode(QMovie.CacheAll)
             self.labels[labelIdx].setGeometry(round(point.x()-(w/2)), round(point.y()-(h/2)), w, h)
             
